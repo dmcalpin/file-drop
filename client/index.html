@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <style>
+            body {
+                background-color: rgb(196, 196, 196);
+            }
+            .container {
+                background-color: #fff;
+                padding: 1rem;
+                max-width: 800px;
+                margin: 0 auto;
+                min-height:100%;
+            }
+            label, button {
+                display: inline-block;
+            }
+            form > * {
+                display: block;
+                margin-bottom: 1rem;
+            }
+            button[type="submit"] {
+                margin-top: 1rem;
+                width: 100%;
+                height: 2rem;
+            }
+            .outline {
+                border: 0.1rem dashed #000;
+                padding: 0.5rem;
+            }
+            strong {
+                padding: 0.5rem;
+                background-color: red;
+                border: 0.2rem solid rgb(185, 2, 2);
+                color: rgb(95, 0, 0);
+                display: block;
+                border-radius: 0.5rem;
+                margin-bottom: 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>File Drop <output id="progress"></output></h1>
+            
+            <div id="notifications"></div>
+
+            <form id="drop-file" method="post">
+                <div>
+                    <label>Destinations</label>
+                    <button id="refresh-destinations" type="button">Refresh Destinations</button>
+                </div>
+                <div id="destinations"></div>
+                <hr>
+                <label for="uploadFile" class="outline">
+                    Pick a file
+                    <input id="uploadFile" name="uploadFile" type="file" required>
+                </label>
+                <button type="submit">Drop It!</button>
+            </form>
+        </div>
+
+        <script>
+            let progress = document.querySelector("#progress")
+
+            function generateDestinations(clickEvent){
+                let destinations = document.querySelector("#destinations")
+                let destinationPickerHTML = ""
+                for (let i=1; i<256; i++) {
+                    let ipAddress = "192.168.0."+i
+                    let serverURL = `http://${ipAddress}:9988`
+                    let statusRequest = new Request(serverURL + "/status");
+                    fetch(statusRequest)
+                    .then(function(response) {
+                        if(response.ok) return response.json();
+                    })
+                    .then(function(responseJSON){
+                        destinationPickerHTML += `
+                            <label>${responseJSON.name || ipAddress}
+                            <input type="radio" value="${serverURL}" name="destination" />
+                            </label>
+                        `
+
+                        destinations.innerHTML = destinationPickerHTML
+                    })
+                }
+            }
+
+            function submitHandler(formEvent){
+                formEvent.preventDefault()
+
+                clearError()
+
+                var file = document.querySelector('#uploadFile').files[0];
+                var ajax = new XMLHttpRequest;
+
+                var formData = new FormData;
+                formData.append('uploadFile', file);
+
+                ajax.upload.addEventListener("progress", myProgressHandler, false);
+                ajax.addEventListener('load', myOnLoadHandler, false);
+                let uploadDestination = document.querySelector("form input[name='destination']:checked").value
+                ajax.open('POST',  `${uploadDestination}/file`, true);
+                ajax.send(formData);
+            }
+
+            function myProgressHandler(event) {
+                var p = Math.floor(event.loaded/event.total*100);
+                progress.innerHTML = p+'%';
+            }
+
+            function myOnLoadHandler(event) {
+                try {
+                    let resp = event.target.responseText
+                    if (resp != "") {
+                        throw new Error(resp)
+                    } 
+                    document.querySelector('#uploadFile').value = null
+                } catch(err){
+                    renderError(err)
+                } finally {
+                    progress.innerHTML = "Done"
+                    setTimeout(function(){
+                        progress.innerHTML = ""
+                    }, 2000)
+                }
+            }
+
+            function renderError(errorStr){
+                document.querySelector("#notifications").innerHTML = `
+                    <strong>${errorStr}</strong>
+                `
+            }
+
+            function clearError(){
+                document.querySelector("#notifications").innerHTML = ""
+            }
+
+            document.querySelector("#refresh-destinations").
+                addEventListener("click", generateDestinations)
+            
+            document.querySelector("#drop-file").
+                addEventListener("submit", submitHandler)
+            
+        </script>
+    </body>
+</html>
